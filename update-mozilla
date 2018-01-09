@@ -1,0 +1,116 @@
+#!/bin/bash
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $(basename $0) (firefox|thunderbird|...)"
+	exit 1
+fi
+
+PRODUCT=$1
+
+### CONFIGURATION STARTS HERE #######
+
+BRANCH=latest
+OS=linux64
+LANG=de
+URL="https://download.mozilla.org/?product=${PRODUCT}-${BRANCH}&os=${OS}&lang=${LANG}"
+
+# Do not append $PRODUCT here, because this whould result in /opt/$PRODUCT/$PRODUCT/
+# because the archives contain a root $PRODUCT/ already.
+TARGETDIR=/opt
+
+### END OF CONFIGURATION ############
+
+HEADERFILE=$PRODUCT.head
+TEMP=/tmp
+
+FINALLOCATION=X
+
+downloadHeader() {
+	local _LOCATION=$1
+	local _HEADERFILE=$2
+	echo "Loading header from ${_LOCATION} to ${_HEADERFILE} ..."
+	curl -# --head $_LOCATION > $_HEADERFILE
+
+	echo "Checking header for redirection ..."
+	if [ $(grep "302 Found" $_HEADERFILE | wc -l) -eq 1 ]; then
+		# Grep the location and trim leading and trailing whitespaces
+		_LOCATION=$(grep "Location: " $_HEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+		echo "Found redirection to ${_LOCATION}."
+		downloadHeader $_LOCATION $_HEADERFILE
+	elif [ $(grep "200 OK" $_HEADERFILE | wc -l) -eq 1 ]; then
+		echo "Found final location at ${_LOCATION}"
+		FINALLOCATION=$_LOCATION
+	fi
+}
+
+ISMODIFIED=0
+
+checkLastModified() {
+	# It would be better for checking file modification time (mtime)
+	# of a possible existing target file, but this is more complicated
+	# as the date-time formats differ for stat/ls to the timestamp
+	# in the headers.
+	# It is easier to compare timestamps in the headers.
+
+	local _OLDHEADERFILE=$1
+	local _NEWHEADERFILE=$2
+
+	if [ -f $_OLDHEADERFILE ]; then
+		_OLDLASTMODIFIED=$(grep "Last-Modified: " $_OLDHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+		echo "Local last modification: ${_OLDLASTMODIFIED}"
+		_NEWLASTMODIFIED=$(grep "Last-Modified: " $_NEWHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+		echo "Remote last modification: ${_NEWLASTMODIFIED}"
+
+		if [ "$_OLDLASTMODIFIED" != "$_NEWLASTMODIFIED" ]; then
+			ISMODIFIED=1
+		fi
+	else
+		ISMODIFIED=1
+	fi
+}
+
+downloadHeader $URL $TEMP/$HEADERFILE
+
+if [ "$FINALLOCATION" == "X" ]; then
+	echo "ERROR: Failed to determine the final-location using: ${URL}"
+	exit 0
+fi
+
+echo "Checking modification timestamps in headers ..."
+checkLastModified $HEADERFILE $TEMP/$HEADERFILE
+
+UPDATEMARKER=$PRODUCT-$BRANCH.update
+DESTFILE=$(basename $FINALLOCATION)
+
+if [ $ISMODIFIED -eq 1 ]; then
+	if [ -f $UPDATEMARKER ]; then
+		OLDDESTFILE=$(readlink $UPDATEMARKER)
+		rm $OLDDESTFILE $UPDATEMARKER
+	fi
+
+	echo "The remote file has been modified."
+	echo "Downloading ${FINALLOCATION} to ${DESTFILE}"
+	wget -S -t 3 -O $DESTFILE ${FINALLOCATION}
+	mv $TEMP/$HEADERFILE $HEADERFILE
+else
+	echo "The remote file has not been modified."
+fi
+
+if [ ! -f $UPDATEMARKER ]; then
+	echo "Updating ${PRODUCT} in ${TARGETDIR} ..."
+	MIMETYPE=$(mimetype --output-format %m $DESTFILE)
+	if [ "$MIMETYPE" == "application/x-bzip-compressed-tar" ]; then
+		# BZIP2-compressed tarball
+		tar -xvjf $DESTFILE -C $TARGETDIR
+	elif [ "$MIMETYPE" == "application/x-compressed-tar" ]; then
+		# GZIP-compressed tarball
+		tar -xvzf $DESTFILE -C $TARGETDIR
+	elif [ "$MIMETYPE" == "application/zip" ]; then
+		# ZIP-compressed file
+		unzip -v -o $DESTFILE -d $TARGETDIR
+	else
+		echo "ERROR: How shall I handle $MIMETYPE in $DESTFILE?"
+	fi
+
+	ln -s $DESTFILE $UPDATEMARKER
+fi

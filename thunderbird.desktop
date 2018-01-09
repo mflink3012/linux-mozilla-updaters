@@ -1,0 +1,7 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Thunderbird
+Exec=/opt/thunderbird/thunderbird
+Icon=/opt/thunderbird/chrome/icons/default/default256.png
+Categories=Network;
