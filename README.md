@@ -49,11 +49,15 @@ The configuration can be modified by editing the scripts header (block is marked
 
 
 *Note 1*: ``$PRODUCT`` (or ``${PRODUCT}``) will be set by the first parameter send to the script and may be ``firefox``, ``thunderbird``, or others (not tested).
+
 *Note 2*: Other values may be possible, but are not tested.
 
 ## Usage
 
 Just call the script [update-mozilla](update-mozilla) without any parameter to print the help.
+
+``desktop``-Files are for convenience and can be put to ``/usr/share/applications/`` or ``~/.local/share/applications/`` to show up in menu (tested with XFCE4).
+ They also can be edited to fit your needs (and configuration).
 
 ## Tested with
 
