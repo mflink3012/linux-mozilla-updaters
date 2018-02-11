@@ -37,9 +37,9 @@ downloadHeader() {
 		_LOCATION=$(grep "Location: " $_HEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 		echo "Found redirection to ${_LOCATION}."
 		downloadHeader $_LOCATION $_HEADERFILE
-	elif [ $(grep "200 OK" $_HEADERFILE | wc -l) -eq 1 ]; then
+	elif [ $(grep "200 OK" $_HEADERFILE | wc -l) -eq 1 ] || [ $(grep "HTTP/2 200" $_HEADERFILE | wc -l) -eq 1 ]; then
 		echo "Found final location at ${_LOCATION}"
-		FINALLOCATION=$_LOCATION
+                FINALLOCATION=$_LOCATION
 	fi
 }
 
@@ -56,9 +56,9 @@ checkLastModified() {
 	local _NEWHEADERFILE=$2
 
 	if [ -f $_OLDHEADERFILE ]; then
-		_OLDLASTMODIFIED=$(grep "Last-Modified: " $_OLDHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+		_OLDLASTMODIFIED=$(grep "odified: " $_OLDHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 		echo "Local last modification: ${_OLDLASTMODIFIED}"
-		_NEWLASTMODIFIED=$(grep "Last-Modified: " $_NEWHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+		_NEWLASTMODIFIED=$(grep "odified: " $_NEWHEADERFILE | cut -d':' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 		echo "Remote last modification: ${_NEWLASTMODIFIED}"
 
 		if [ "$_OLDLASTMODIFIED" != "$_NEWLASTMODIFIED" ]; then
